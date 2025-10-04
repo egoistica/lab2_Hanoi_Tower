@@ -1,0 +1,40 @@
+# Godot 4+ specific ignores
+.godot/
+
+# Godot-specific ignores
+*.tmp
+*.translation
+.import/
+
+# Imported files (automatically generated)
+*.import
+
+# Mono-specific ignores
+.mono/
+data_*/
+mono_crash.*.json
+
+# System/OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Build results
+bin/
+obj/
+*.pck
+*.exe
+*.dll
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
