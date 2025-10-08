@@ -5,308 +5,382 @@ using System.Threading.Tasks;
 
 public partial class Main : Control
 {
-    [Export] public HSlider RingsCountSlider { get; set; }
-    [Export] public Label RingsCountValue { get; set; }
-    [Export] public Button NewGameButton { get; set; }
-    [Export] public Button SolveButton { get; set; }
-    [Export] public Control GameArea { get; set; }
-    [Export] public Label StatusLabel { get; set; }
-    [Export] public Label MovesLabel { get; set; }
+	[Export] public HSlider RingsCountSlider { get; set; }
+	[Export] public Label RingsCountValue { get; set; }
+	[Export] public Button NewGameButton { get; set; }
+	[Export] public Button SolveButton { get; set; }
+	[Export] public Control GameArea { get; set; }
+	[Export] public Label StatusLabel { get; set; }
+	[Export] public Label MovesLabel { get; set; }
 
-    private List<Tower> towers = new List<Tower>();
-    private List<Ring> rings = new List<Ring>();
-    private int movesCount = 0;
-    private bool isSolving = false;
+	private List<Tower> towers = new List<Tower>();
+	private List<Ring> rings = new List<Ring>();
+	private int movesCount = 0;
+	private bool isSolving = false;
 
-    // Цвета для колец
-    private readonly Color[] ringColors = {
-        new Color(1.0f, 0.2f, 0.2f),  // Красный
-        new Color(1.0f, 0.6f, 0.2f),  // Оранжевый
-        new Color(1.0f, 1.0f, 0.2f),  // Желтый
-        new Color(0.2f, 1.0f, 0.2f),  // Зеленый
-        new Color(0.2f, 0.6f, 1.0f),  // Голубой
-        new Color(0.6f, 0.2f, 1.0f),  // Фиолетовый
-        new Color(1.0f, 0.2f, 0.8f),  // Розовый
-        new Color(0.8f, 0.8f, 0.8f)   // Серый
-    };
+	private Ring grabbedRing = null; 
 
-    public override void _Ready()
-    {
-        // Получаем ссылки на узлы
-        RingsCountSlider = GetNode<HSlider>("RingsCountSlider");
-        RingsCountValue = GetNode<Label>("RingsCountValue");
-        NewGameButton = GetNode<Button>("NewGameButton");
-        SolveButton = GetNode<Button>("SolveButton");
-        GameArea = GetNode<Control>("GameArea");
-        StatusLabel = GetNode<Label>("StatusLabel");
-        MovesLabel = GetNode<Label>("MovesLabel");
+	// Цвета для колец
+	private readonly Color[] ringColors = {
+		new Color(1.0f, 0.2f, 0.2f),  // Красный
+		new Color(1.0f, 0.6f, 0.2f),  // Оранжевый
+		new Color(1.0f, 1.0f, 0.2f),  // Желтый
+		new Color(0.2f, 1.0f, 0.2f),  // Зеленый
+		new Color(0.2f, 0.6f, 1.0f),  // Голубой
+		new Color(0.6f, 0.2f, 1.0f),  // Фиолетовый
+		new Color(1.0f, 0.2f, 0.8f),  // Розовый
+		new Color(0.8f, 0.8f, 0.8f)   // Серый
+	};
 
-        // Подключаем сигналы
-        RingsCountSlider.ValueChanged += OnRingsCountChanged;
-        NewGameButton.Pressed += OnNewGame;
-        SolveButton.Pressed += OnSolve;
+	public override void _Ready()
+	{
+		RingsCountSlider = GetNode<HSlider>("RingsCountSlider");
+		RingsCountValue = GetNode<Label>("RingsCountValue");
+		NewGameButton = GetNode<Button>("NewGameButton");
+		SolveButton = GetNode<Button>("SolveButton");
+		GameArea = GetNode<Control>("GameArea");
+		StatusLabel = GetNode<Label>("StatusLabel");
+		MovesLabel = GetNode<Label>("MovesLabel");
 
-        // Инициализируем игру
-        OnNewGame();
-    }
+		RingsCountSlider.ValueChanged += OnRingsCountChanged;
+		NewGameButton.Pressed += OnNewGame;
+		SolveButton.Pressed += OnSolve;
 
-    private void OnRingsCountChanged(double value)
-    {
-        RingsCountValue.Text = ((int)value).ToString();
-    }
+		OnNewGame();
+	}
 
-    private void OnNewGame()
-    {
-        // Очищаем предыдущее состояние
-        ClearGame();
+	private void OnRingsCountChanged(double value)
+	{
+		RingsCountValue.Text = ((int)value).ToString();
+	}
 
-        // Создаем новые башни
-        CreateTowers();
+	private void OnNewGame()
+	{
+		ClearGame();
+		CreateTowers();
 
-        // Создаем кольца
-        int ringsCount = (int)RingsCountSlider.Value;
-        CreateRings(ringsCount);
+		int ringsCount = (int)RingsCountSlider.Value;
+		CreateRings(ringsCount);
+		PlaceRingsOnFirstTower();
 
-        // Размещаем кольца на первой башне
-        PlaceRingsOnFirstTower();
+		movesCount = 0;
+		UpdateMovesLabel();
 
-        // Сбрасываем счетчик ходов
-        movesCount = 0;
-        UpdateMovesLabel();
+		StatusLabel.Text = "Перетащите кольца для решения головоломки";
+		isSolving = false;
+	}
 
-        // Обновляем статус
-        StatusLabel.Text = "Перетащите кольца для решения головоломки";
-        isSolving = false;
-    }
+	private async void OnSolve()
+	{
+		if (isSolving) return;
 
-    private async void OnSolve()
-    {
-        if (isSolving) return;
+		isSolving = true;
+		StatusLabel.Text = "Автоматическое решение...";
+		SolveButton.Disabled = true;
 
-        isSolving = true;
-        StatusLabel.Text = "Автоматическое решение...";
-        SolveButton.Disabled = true;
+		await SolveHanoiAlgorithm();
 
-        // Запускаем алгоритм решения
-        await SolveHanoiAlgorithm();
+		StatusLabel.Text = "Решение завершено!";
+		SolveButton.Disabled = false;
+		isSolving = false;
+	}
 
-        StatusLabel.Text = "Решение завершено!";
-        SolveButton.Disabled = false;
-        isSolving = false;
-    }
+	private void ClearGame()
+	{
+		foreach (var ring in rings)
+		{
+			if (IsInstanceValid(ring))
+				ring.QueueFree();
+		}
+		rings.Clear();
 
-    private void ClearGame()
-    {
-        // Удаляем все кольца
-        foreach (var ring in rings)
-        {
-            if (IsInstanceValid(ring))
-            {
-                ring.QueueFree();
-            }
-        }
-        rings.Clear();
+		foreach (var tower in towers)
+		{
+			if (tower.Visual != null && IsInstanceValid(tower.Visual))
+				tower.Visual.QueueFree();
+			tower.Rings.Clear();
+		}
+	}
 
-        // Удаляем визуальные стержни и очищаем башни
-        foreach (var tower in towers)
-        {
-            if (tower.Visual != null && IsInstanceValid(tower.Visual))
-            {
-                tower.Visual.QueueFree();
-            }
-            tower.Rings.Clear();
-        }
-    }
+	private void CreateTowers()
+	{
+		towers.Clear();
+		var towerNodes = new[]
+		{
+			GameArea.GetNode<Control>("Tower1"),
+			GameArea.GetNode<Control>("Tower2"),
+			GameArea.GetNode<Control>("Tower3")
+		};
 
-    private void CreateTowers()
-    {
-        towers.Clear();
+		for (int i = 0; i < 3; i++)
+		{
+			var towerVisual = new TowerVisual();
+			towerVisual.Position = towerNodes[i].Position;
+			towerVisual.Size = new Vector2(100, 400);
+			GameArea.AddChild(towerVisual);
 
-        // Получаем узлы башен
-        var towerNodes = new[]
-        {
-            GameArea.GetNode<Control>("Tower1"),
-            GameArea.GetNode<Control>("Tower2"),
-            GameArea.GetNode<Control>("Tower3")
-        };
+			var tower = new Tower
+			{
+				TowerIndex = i,
+				Position = towerNodes[i].Position,
+				Size = new Vector2(100, 400),
+				Visual = towerVisual
+			};
+			towers.Add(tower);
+		}
+	}
 
-        for (int i = 0; i < 3; i++)
-        {
-            // Создаем визуальный стержень
-            var towerVisual = new TowerVisual();
-            towerVisual.Position = towerNodes[i].Position;
-            towerVisual.Size = new Vector2(100, 400);
-            GameArea.AddChild(towerVisual);
+	private void CreateRings(int count)
+	{
+		rings.Clear();
 
-            var tower = new Tower
-            {
-                TowerIndex = i,
-                Position = towerNodes[i].Position,
-                Size = new Vector2(100, 400),
-                Visual = towerVisual
-            };
-            towers.Add(tower);
-        }
-    }
+		for (int i = 0; i < count; i++)
+		{
+			var ring = new Ring();
+			ring.RingSize = count - i;
+			ring.RingColor = ringColors[i % ringColors.Length];
+			ring.RingIndex = i;
+			ring.Size = new Vector2(20 + ring.RingSize * 15, 30);
+			GameArea.AddChild(ring);
 
-    private void CreateRings(int count)
-    {
-        rings.Clear();
+			// 🆕 Подписка на сигналы мыши
+			ring.OnRingGrabbed += OnRingGrabbed;
+			ring.OnRingReleased += OnRingReleased;
+			ring.OnRingDragged += OnRingDragged;
 
-        for (int i = 0; i < count; i++)
-        {
-            var ring = new Ring();
-            ring.RingSize = count - i; // Большие кольца имеют больший размер
-            ring.RingColor = ringColors[i % ringColors.Length];
-            ring.RingIndex = i;
-            ring.Position = Vector2.Zero;
-            ring.Size = new Vector2(20 + ring.RingSize * 15, 30);
-            rings.Add(ring);
+			rings.Add(ring);
+		}
+	}
 
-            // Добавляем кольцо в сцену
-            GameArea.AddChild(ring);
+	private void PlaceRingsOnFirstTower()
+	{
+		for (int i = 0; i < rings.Count; i++)
+		{
+			var ring = rings[i];
+			var tower = towers[0];
+			ring.Position = new Vector2(
+				tower.Position.X + tower.Size.X / 2 - ring.Size.X / 2,
+				tower.Position.Y + tower.Size.Y - 20 - (i + 1) * 35
+			);
+			tower.Rings.Add(ring);
+			ring.CurrentTower = 0;
+		}
+	}
 
-            // Убираем обработку мыши - только автоматическое решение
-        }
-    }
+	private bool CheckWinCondition() => towers[2].Rings.Count == rings.Count;
 
-    private void PlaceRingsOnFirstTower()
-    {
-        // Размещаем все кольца на первой башне
-        for (int i = 0; i < rings.Count; i++)
-        {
-            var ring = rings[i];
-            var tower = towers[0];
+	private void UpdateMovesLabel() => MovesLabel.Text = "Ходов: " + movesCount;
 
-            // Позиционируем кольцо на основании стержня
-            // Основание стержня находится на высоте Size.Y - 20
-            ring.Position = new Vector2(
-                tower.Position.X + tower.Size.X / 2 - ring.Size.X / 2,
-                tower.Position.Y + tower.Size.Y - 20 - (i + 1) * 35  // Размещаем на основании
-            );
+	private async Task SolveHanoiAlgorithm() => await HanoiRecursive(rings.Count, 0, 2, 1);
 
-            // Добавляем в башню
-            tower.Rings.Add(ring);
-            ring.CurrentTower = 0;
-        }
-    }
+	private async Task HanoiRecursive(int n, int from, int to, int aux)
+	{
+		if (n == 1)
+		{
+			await MoveRingAnimation(from, to);
+			return;
+		}
 
-    // Убраны методы обработки мыши - только автоматическое решение
+		await HanoiRecursive(n - 1, from, aux, to);
+		await MoveRingAnimation(from, to);
+		await HanoiRecursive(n - 1, aux, to, from);
+	}
 
-    private bool CheckWinCondition()
-    {
-        // Проверяем, что все кольца находятся на третьей башне
-        return towers[2].Rings.Count == rings.Count;
-    }
+	private async Task MoveRingAnimation(int fromTower, int toTower)
+	{
+		if (towers[fromTower].Rings.Count == 0) return;
 
-    private void UpdateMovesLabel()
-    {
-        MovesLabel.Text = "Ходов: " + movesCount;
-    }
+		var ring = towers[fromTower].Rings[^1];
 
-    private async Task SolveHanoiAlgorithm()
-    {
-        // Алгоритм решения Ханойской башни
-        await HanoiRecursive(rings.Count, 0, 2, 1);
-    }
+		var endPos = new Vector2(
+			towers[toTower].Position.X + towers[toTower].Size.X / 2 - ring.Size.X / 2,
+			towers[toTower].Position.Y + towers[toTower].Size.Y - 20 - (towers[toTower].Rings.Count + 1) * 35
+		);
 
-    private async Task HanoiRecursive(int n, int from, int to, int aux)
-    {
-        if (n == 1)
-        {
-            await MoveRingAnimation(from, to);
-            return;
-        }
+		var tween = CreateTween();
+		tween.TweenProperty(ring, "position", endPos, 0.4);
+		await ToSignal(tween, Tween.SignalName.Finished);
 
-        await HanoiRecursive(n - 1, from, aux, to);
-        await MoveRingAnimation(from, to);
-        await HanoiRecursive(n - 1, aux, to, from);
-    }
+		towers[fromTower].Rings.Remove(ring);
+		towers[toTower].Rings.Add(ring);
+		ring.CurrentTower = toTower;
 
-    private async Task MoveRingAnimation(int fromTower, int toTower)
-    {
-        if (towers[fromTower].Rings.Count == 0)
-            return;
+		movesCount++;
+		UpdateMovesLabel();
 
-        var ring = towers[fromTower].Rings[towers[fromTower].Rings.Count - 1];
+		await ToSignal(GetTree().CreateTimer(0.2), Timer.SignalName.Timeout);
+	}
 
-        // Анимируем перемещение
-        var startPos = ring.Position;
-        var endPos = new Vector2(
-            towers[toTower].Position.X + towers[toTower].Size.X / 2 - ring.Size.X / 2,
-            towers[toTower].Position.Y + towers[toTower].Size.Y - 20 - (towers[toTower].Rings.Count + 1) * 35  // Размещаем на основании
-        );
+	
+	private bool CanMoveRing(Ring ring)
+	{
+		var tower = towers[ring.CurrentTower];
+		return tower.Rings.Count > 0 && tower.Rings[^1] == ring;
+	}
 
-        // Создаем анимацию
-        var tween = CreateTween();
-        tween.TweenProperty(ring, "position", endPos, 0.5);
-        await ToSignal(tween, Tween.SignalName.Finished);
+	
+	private int GetTowerAtPosition(Vector2 pos)
+	{
+		for (int i = 0; i < towers.Count; i++)
+		{
+			var t = towers[i];
+			var rect = new Rect2(t.Position, t.Size);
+			if (rect.HasPoint(pos))
+				return i;
+		}
+		return -1;
+	}
 
-        // Обновляем состояние
-        towers[fromTower].Rings.Remove(ring);
-        towers[toTower].Rings.Add(ring);
-        ring.CurrentTower = toTower;
 
-        movesCount++;
-        UpdateMovesLabel();
+	private void TryPlaceRing(Ring ring, Vector2 mousePos)
+	{
+		int targetTowerIndex = GetTowerAtPosition(mousePos);
+		if (targetTowerIndex == -1) return;
 
-        // Небольшая пауза между ходами
-        await ToSignal(GetTree().CreateTimer(0.2), Timer.SignalName.Timeout);
-    }
+		var fromTower = towers[ring.CurrentTower];
+		var toTower = towers[targetTowerIndex];
+
+		if (toTower.Rings.Count == 0 || toTower.Rings[^1].RingSize > ring.RingSize)
+		{
+			fromTower.Rings.Remove(ring);
+			toTower.Rings.Add(ring);
+			ring.CurrentTower = targetTowerIndex;
+
+			ring.Position = new Vector2(
+				toTower.Position.X + toTower.Size.X / 2 - ring.Size.X / 2,
+				toTower.Position.Y + toTower.Size.Y - 20 - toTower.Rings.Count * 35
+			);
+
+			movesCount++;
+			UpdateMovesLabel();
+
+			if (CheckWinCondition())
+				StatusLabel.Text = "✅ Победа!";
+		}
+		else
+		{
+			// Нельзя положить — вернуть на место
+			ring.Position = new Vector2(
+				fromTower.Position.X + fromTower.Size.X / 2 - ring.Size.X / 2,
+				fromTower.Position.Y + fromTower.Size.Y - 20 - fromTower.Rings.Count * 35
+			);
+		}
+	}
+
+	
+	private void OnRingGrabbed(Ring ring)
+	{
+		if (!CanMoveRing(ring)) return;
+		grabbedRing = ring;
+		StatusLabel.Text = $"Вы выбрали кольцо {ring.RingSize}";
+	}
+
+	private void OnRingDragged(Ring ring, Vector2 mousePos)
+	{
+		if (grabbedRing == ring)
+			ring.Position = mousePos - ring.Size / 2;
+	}
+
+	private void OnRingReleased(Ring ring, Vector2 mousePos)
+	{
+		if (grabbedRing == ring)
+		{
+			TryPlaceRing(ring, mousePos);
+			grabbedRing = null;
+		}
+	}
 }
 
-// Класс для представления башни
+
+
 public class Tower
 {
-    public int TowerIndex { get; set; }
-    public Vector2 Position { get; set; }
-    public Vector2 Size { get; set; }
-    public List<Ring> Rings { get; set; } = new List<Ring>();
-    public TowerVisual Visual { get; set; }
+	public int TowerIndex { get; set; }
+	public Vector2 Position { get; set; }
+	public Vector2 Size { get; set; }
+	public List<Ring> Rings { get; set; } = new List<Ring>();
+	public TowerVisual Visual { get; set; }
 }
 
-// Класс для представления кольца
+
+
 public partial class Ring : Control
 {
-    public int RingSize { get; set; }
-    public int RingIndex { get; set; }
-    public int CurrentTower { get; set; } = 0;
-    public Color RingColor { get; set; } = Colors.White;
+	public int RingSize { get; set; }
+	public int RingIndex { get; set; }
+	public int CurrentTower { get; set; } = 0;
+	public Color RingColor { get; set; } = Colors.White;
 
-    public override void _Ready()
-    {
-        // Отключаем обработку мыши - только автоматическое решение
-        MouseFilter = MouseFilterEnum.Ignore;
-    }
+	public event Action<Ring> OnRingGrabbed;
+	public event Action<Ring, Vector2> OnRingDragged;
+	public event Action<Ring, Vector2> OnRingReleased;
 
-    public override void _Draw()
-    {
-        // Рисуем кольцо
-        var rect = new Rect2(Vector2.Zero, Size);
-        
-        // Основной цвет кольца
-        DrawRect(rect, RingColor);
-        
-        // Градиентный эффект (светлая полоса сверху)
-        var lightRect = new Rect2(0, 0, Size.X, Size.Y / 3);
-        var lightColor = new Color(RingColor.R + 0.3f, RingColor.G + 0.3f, RingColor.B + 0.3f, RingColor.A);
-        DrawRect(lightRect, lightColor);
-        
-        // Тень снизу
-        var shadowRect = new Rect2(0, Size.Y * 2 / 3, Size.X, Size.Y / 3);
-        var shadowColor = new Color(RingColor.R - 0.2f, RingColor.G - 0.2f, RingColor.B - 0.2f, RingColor.A);
-        DrawRect(shadowRect, shadowColor);
-        
-        // Обводка
-        DrawRect(rect, Colors.Black, false, 2.0f);
-        
-        // Внутренняя полость кольца (если размер позволяет)
-        if (Size.X > 20)
-        {
-            var innerRect = new Rect2(Size.X / 4, 0, Size.X / 2, Size.Y);
-            DrawRect(innerRect, new Color(0.2f, 0.2f, 0.2f, 0.8f));
-        }
-    }
+	private bool isDragging = false;
 
-    // Убираем обработку мыши - оставляем только автоматическое решение
+	public override void _Ready()
+	{
+		MouseFilter = MouseFilterEnum.Stop; // 🆕 Разрешаем обработку
+	}
+
+	public override void _GuiInput(InputEvent @event)
+	{
+		if (@event is InputEventMouseButton mouseEvent)
+		{
+			if (mouseEvent.ButtonIndex == MouseButton.Left)
+			{
+				if (mouseEvent.Pressed)
+				{
+					isDragging = true;
+					OnRingGrabbed?.Invoke(this);
+				}
+				else if (isDragging)
+				{
+					isDragging = false;
+					OnRingReleased?.Invoke(this, GetGlobalMousePosition());
+				}
+			}
+		}
+		else if (@event is InputEventMouseMotion && isDragging)
+		{
+			OnRingDragged?.Invoke(this, GetGlobalMousePosition());
+		}
+	}
+
+	public override void _Draw()
+	{
+		var rect = new Rect2(Vector2.Zero, Size);
+
+		// Основной цвет кольца
+		DrawRect(rect, RingColor);
+
+		// Градиентный эффект (светлая полоса сверху)
+		var lightRect = new Rect2(0, 0, Size.X, Size.Y / 3);
+		var lightColor = new Color(
+			Mathf.Clamp(RingColor.R + 0.3f, 0, 1),
+			Mathf.Clamp(RingColor.G + 0.3f, 0, 1),
+			Mathf.Clamp(RingColor.B + 0.3f, 0, 1),
+			RingColor.A
+		);
+		DrawRect(lightRect, lightColor);
+
+		// Тень снизу
+		var shadowRect = new Rect2(0, Size.Y * 2 / 3, Size.X, Size.Y / 3);
+		var shadowColor = new Color(
+			Mathf.Clamp(RingColor.R - 0.2f, 0, 1),
+			Mathf.Clamp(RingColor.G - 0.2f, 0, 1),
+			Mathf.Clamp(RingColor.B - 0.2f, 0, 1),
+			RingColor.A
+		);
+		DrawRect(shadowRect, shadowColor);
+
+		// Обводка
+		DrawRect(rect, Colors.Black, false, 2.0f);
+
+		// Внутренняя полость кольца
+		if (Size.X > 20)
+		{
+			var innerRect = new Rect2(Size.X / 4, 0, Size.X / 2, Size.Y);
+			DrawRect(innerRect, new Color(0.2f, 0.2f, 0.2f, 0.8f));
+		}
+	}
 }
